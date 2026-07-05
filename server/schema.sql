@@ -1,9 +1,10 @@
 -- =====================================================================
--- ERP Cimento — Schema do banco local (SQLite)
+-- ERP Moda — Schema do banco local (SQLite)
 --
 -- Modelo em camadas:
+--   categorias          -> cadastro de categorias (FK evita erro de grafia)
 --   produtos            -> conceito genérico (sem preço/estoque)
---   atributos           -> eixos de variação dinâmicos (Tipo, Peso, ...)
+--   atributos           -> eixos de variação dinâmicos (Cor, Tamanho, ...)
 --   valores_atributo    -> valores possíveis de cada atributo
 --   variacoes           -> SKU concreto vendável (combinação de valores)
 --   variacao_valores    -> quais valores compõem cada SKU
@@ -14,14 +15,21 @@
 
 PRAGMA foreign_keys = ON;
 
+-- Categoria é cadastro, não texto livre: o produto referencia por FK,
+-- então "Camisetas" nunca convive com "camizetas" nos relatórios.
+CREATE TABLE IF NOT EXISTS categorias (
+  id   INTEGER PRIMARY KEY AUTOINCREMENT,
+  nome TEXT NOT NULL UNIQUE COLLATE NOCASE
+);
+
 CREATE TABLE IF NOT EXISTS produtos (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  nome        TEXT NOT NULL,
-  descricao   TEXT,
-  categoria   TEXT,
-  unidade     TEXT NOT NULL DEFAULT 'UN',
-  ativo       INTEGER NOT NULL DEFAULT 1,
-  criado_em   TEXT NOT NULL DEFAULT (datetime('now'))
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  nome         TEXT NOT NULL,
+  descricao    TEXT,
+  categoria_id INTEGER REFERENCES categorias(id) ON DELETE RESTRICT,
+  unidade      TEXT NOT NULL DEFAULT 'UN',
+  ativo        INTEGER NOT NULL DEFAULT 1,
+  criado_em    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS atributos (
@@ -85,6 +93,7 @@ CREATE TABLE IF NOT EXISTS fornecedor_variacao (
   UNIQUE (fornecedor_id, variacao_id, condicao_pagamento_id)
 );
 
+CREATE INDEX IF NOT EXISTS idx_produtos_categoria        ON produtos(categoria_id);
 CREATE INDEX IF NOT EXISTS idx_valores_atributo_atributo ON valores_atributo(atributo_id);
 CREATE INDEX IF NOT EXISTS idx_variacoes_produto         ON variacoes(produto_id);
 CREATE INDEX IF NOT EXISTS idx_vv_valor                  ON variacao_valores(valor_atributo_id);

@@ -1,21 +1,25 @@
 import { NavLink, Route, Routes } from "react-router-dom";
-import { Boxes, Factory, LayoutDashboard, Package, Scale, Tags, Wallet } from "lucide-react";
+import { BarChart3, Factory, FolderTree, LayoutDashboard, Package, Scale, Shirt, Tags, Wallet } from "lucide-react";
 import Dashboard from "./pages/Dashboard";
 import Produtos from "./pages/Produtos";
 import ProdutoDetalhe from "./pages/ProdutoDetalhe";
+import Categorias from "./pages/Categorias";
 import Atributos from "./pages/Atributos";
 import Fornecedores from "./pages/Fornecedores";
 import FornecedorDetalhe from "./pages/FornecedorDetalhe";
 import Condicoes from "./pages/Condicoes";
 import Comparador from "./pages/Comparador";
+import Relatorios from "./pages/Relatorios";
 
 const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/produtos", label: "Produtos & SKUs", icon: Package },
+  { to: "/categorias", label: "Categorias", icon: FolderTree },
   { to: "/atributos", label: "Atributos", icon: Tags },
   { to: "/fornecedores", label: "Fornecedores", icon: Factory },
   { to: "/condicoes", label: "Cond. de Pagamento", icon: Wallet },
-  { to: "/comparador", label: "Comparador de Compras", icon: Scale }
+  { to: "/comparador", label: "Comparador de Compras", icon: Scale },
+  { to: "/relatorios", label: "Relatórios", icon: BarChart3 }
 ];
 
 export default function App() {
@@ -23,10 +27,10 @@ export default function App() {
     <div className="flex min-h-screen">
       <aside className="fixed inset-y-0 w-60 border-r border-slate-200 bg-slate-900 text-slate-300">
         <div className="flex items-center gap-2 px-5 py-5 text-white">
-          <Boxes className="text-amber-400" size={24} />
+          <Shirt className="text-amber-400" size={24} />
           <div>
-            <p className="text-base font-bold leading-tight">ERP Cimento</p>
-            <p className="text-[11px] text-slate-400">Catálogo · Fornecedores · Compras</p>
+            <p className="text-base font-bold leading-tight">ERP Moda</p>
+            <p className="text-[11px] text-slate-400">Roupas & Acessórios</p>
           </div>
         </div>
         <nav className="mt-2 space-y-1 px-3">
@@ -55,11 +59,13 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/produtos" element={<Produtos />} />
           <Route path="/produtos/:id" element={<ProdutoDetalhe />} />
+          <Route path="/categorias" element={<Categorias />} />
           <Route path="/atributos" element={<Atributos />} />
           <Route path="/fornecedores" element={<Fornecedores />} />
           <Route path="/fornecedores/:id" element={<FornecedorDetalhe />} />
           <Route path="/condicoes" element={<Condicoes />} />
           <Route path="/comparador" element={<Comparador />} />
+          <Route path="/relatorios" element={<Relatorios />} />
         </Routes>
       </main>
     </div>

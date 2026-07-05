@@ -7,9 +7,9 @@ import type { Dashboard as DashboardData } from "../types";
 const stats: { key: keyof DashboardData; label: string; to: string }[] = [
   { key: "produtos", label: "Produtos", to: "/produtos" },
   { key: "variacoes", label: "Variações (SKUs)", to: "/produtos" },
+  { key: "categorias", label: "Categorias", to: "/categorias" },
   { key: "atributos", label: "Atributos", to: "/atributos" },
   { key: "fornecedores", label: "Fornecedores", to: "/fornecedores" },
-  { key: "condicoes", label: "Cond. pagamento", to: "/condicoes" },
   { key: "ofertas", label: "Ofertas cadastradas", to: "/comparador" }
 ];
 
