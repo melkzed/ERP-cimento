@@ -11,10 +11,17 @@ export interface ValorAtributo {
   em_uso: number;
 }
 
+export interface Categoria {
+  id: number;
+  nome: string;
+  num_produtos?: number;
+}
+
 export interface Produto {
   id: number;
   nome: string;
   descricao: string | null;
+  categoria_id: number | null;
   categoria: string | null;
   unidade: string;
   ativo: number;
@@ -95,9 +102,36 @@ export interface Oferta {
   produto: string;
 }
 
+export interface RelatorioCategoria {
+  id: number;
+  categoria: string;
+  num_produtos: number;
+  num_skus: number;
+  estoque_total: number;
+  valor_estoque: number;
+}
+
+export interface RelatorioMargem {
+  id: number;
+  sku: string;
+  preco_venda: number;
+  estoque: number;
+  produto: string;
+  categoria: string | null;
+  melhor_custo: number;
+  margem: number;
+  margem_pct: number;
+}
+
+export interface Relatorios {
+  porCategoria: RelatorioCategoria[];
+  margens: RelatorioMargem[];
+}
+
 export interface Dashboard {
   produtos: number;
   variacoes: number;
+  categorias: number;
   fornecedores: number;
   ofertas: number;
   atributos: number;

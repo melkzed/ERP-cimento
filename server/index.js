@@ -85,6 +85,7 @@ app.get('/api/dashboard', wrap((req, res) => {
   res.json({
     produtos: count('SELECT COUNT(*) n FROM produtos'),
     variacoes: count('SELECT COUNT(*) n FROM variacoes'),
+    categorias: count('SELECT COUNT(*) n FROM categorias'),
     fornecedores: count('SELECT COUNT(*) n FROM fornecedores'),
     ofertas: count('SELECT COUNT(*) n FROM fornecedor_variacao'),
     atributos: count('SELECT COUNT(*) n FROM atributos'),
@@ -92,6 +93,66 @@ app.get('/api/dashboard', wrap((req, res) => {
     estoqueBaixo,
     melhoresOfertas,
   });
+}));
+
+// ---------------------------------------------------------------- Relatórios
+app.get('/api/relatorios', wrap((req, res) => {
+  // Visão por categoria: como categoria é FK, o agrupamento é sempre limpo.
+  const porCategoria = db.prepare(`
+    SELECT c.id, c.nome AS categoria,
+           COUNT(DISTINCT p.id) AS num_produtos,
+           COUNT(v.id) AS num_skus,
+           COALESCE(SUM(v.estoque), 0) AS estoque_total,
+           COALESCE(SUM(v.estoque * v.preco_venda), 0) AS valor_estoque
+      FROM categorias c
+      LEFT JOIN produtos p ON p.categoria_id = c.id
+      LEFT JOIN variacoes v ON v.produto_id = p.id
+     GROUP BY c.id
+     ORDER BY valor_estoque DESC
+  `).all();
+
+  // Margem por SKU: preço de venda × melhor custo efetivo entre fornecedores.
+  const margens = db.prepare(`
+    SELECT v.id, v.sku, v.preco_venda, v.estoque, p.nome AS produto, c.nome AS categoria,
+           (SELECT MIN(ROUND(fv.preco_custo * (1 + cp.taxa_juros / 100.0), 2))
+              FROM fornecedor_variacao fv
+              JOIN condicoes_pagamento cp ON cp.id = fv.condicao_pagamento_id
+             WHERE fv.variacao_id = v.id) AS melhor_custo
+      FROM variacoes v
+      JOIN produtos p ON p.id = v.produto_id
+      LEFT JOIN categorias c ON c.id = p.categoria_id
+     WHERE v.preco_venda IS NOT NULL
+     ORDER BY p.nome, v.sku
+  `).all().filter((m) => m.melhor_custo != null)
+    .map((m) => ({
+      ...m,
+      margem: Math.round((m.preco_venda - m.melhor_custo) * 100) / 100,
+      margem_pct: Math.round(((m.preco_venda - m.melhor_custo) / m.preco_venda) * 1000) / 10,
+    }))
+    .sort((a, b) => b.margem_pct - a.margem_pct);
+
+  res.json({ porCategoria, margens });
+}));
+
+// ---------------------------------------------------------------- Categorias
+app.get('/api/categorias', wrap((req, res) => {
+  res.json(db.prepare(`
+    SELECT c.*,
+           (SELECT COUNT(*) FROM produtos p WHERE p.categoria_id = c.id) AS num_produtos
+      FROM categorias c ORDER BY c.nome
+  `).all());
+}));
+
+app.post('/api/categorias', wrap((req, res) => {
+  const { nome } = req.body;
+  if (!nome?.trim()) return res.status(400).json({ error: 'Informe o nome da categoria.' });
+  const r = db.prepare('INSERT INTO categorias (nome) VALUES (?)').run(nome.trim());
+  res.status(201).json({ id: r.lastInsertRowid });
+}));
+
+app.delete('/api/categorias/:id', wrap((req, res) => {
+  db.prepare('DELETE FROM categorias WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
 }));
 
 // ---------------------------------------------------------------- Atributos
@@ -131,23 +192,29 @@ app.delete('/api/valores/:id', wrap((req, res) => {
 // ---------------------------------------------------------------- Produtos
 app.get('/api/produtos', wrap((req, res) => {
   res.json(db.prepare(`
-    SELECT p.*,
+    SELECT p.*, c.nome AS categoria,
            (SELECT COUNT(*) FROM variacoes v WHERE v.produto_id = p.id) AS num_variacoes,
            (SELECT COALESCE(SUM(v.estoque), 0) FROM variacoes v WHERE v.produto_id = p.id) AS estoque_total
-      FROM produtos p ORDER BY p.nome
+      FROM produtos p LEFT JOIN categorias c ON c.id = p.categoria_id
+     ORDER BY p.nome
   `).all());
 }));
 
 app.post('/api/produtos', wrap((req, res) => {
-  const { nome, descricao, categoria, unidade } = req.body;
+  const { nome, descricao, categoria_id, unidade } = req.body;
   if (!nome?.trim()) return res.status(400).json({ error: 'Informe o nome do produto.' });
-  const r = db.prepare('INSERT INTO produtos (nome, descricao, categoria, unidade) VALUES (?, ?, ?, ?)')
-    .run(nome.trim(), descricao || null, categoria || null, unidade || 'UN');
+  if (!categoria_id) return res.status(400).json({ error: 'Selecione uma categoria.' });
+  const r = db.prepare('INSERT INTO produtos (nome, descricao, categoria_id, unidade) VALUES (?, ?, ?, ?)')
+    .run(nome.trim(), descricao || null, categoria_id, unidade || 'UN');
   res.status(201).json({ id: r.lastInsertRowid });
 }));
 
 app.get('/api/produtos/:id', wrap((req, res) => {
-  const produto = db.prepare('SELECT * FROM produtos WHERE id = ?').get(req.params.id);
+  const produto = db.prepare(`
+    SELECT p.*, c.nome AS categoria
+      FROM produtos p LEFT JOIN categorias c ON c.id = p.categoria_id
+     WHERE p.id = ?
+  `).get(req.params.id);
   if (!produto) return res.status(404).json({ error: 'Produto não encontrado.' });
   const variacoes = db.prepare(`
     SELECT v.*,
@@ -187,6 +254,38 @@ app.post('/api/produtos/:id/variacoes', wrap((req, res) => {
     for (const vid of valor_atributo_ids) insVV.run(varId, vid);
     db.exec('COMMIT');
     res.status(201).json({ id: varId });
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+}));
+
+// Cadastro rápido: recebe várias combinações de uma vez (produto cartesiano
+// montado no frontend), cria tudo em uma transação e ignora SKUs já existentes.
+app.post('/api/produtos/:id/variacoes/gerar', wrap((req, res) => {
+  const { combinacoes = [], estoque = 0, estoque_minimo = 0, preco_venda = null } = req.body;
+  if (!Array.isArray(combinacoes) || combinacoes.length === 0) {
+    return res.status(400).json({ error: 'Nenhuma combinação enviada.' });
+  }
+  const skuExiste = db.prepare('SELECT 1 FROM variacoes WHERE sku = ?');
+  const insVar = db.prepare('INSERT INTO variacoes (produto_id, sku, estoque, estoque_minimo, preco_venda) VALUES (?, ?, ?, ?, ?)');
+  const insVV = db.prepare('INSERT INTO variacao_valores (variacao_id, valor_atributo_id) VALUES (?, ?)');
+  db.exec('BEGIN');
+  try {
+    let criadas = 0;
+    let ignoradas = 0;
+    for (const { sku, valor_atributo_ids = [] } of combinacoes) {
+      if (!sku?.trim()) continue;
+      if (skuExiste.get(sku.trim())) {
+        ignoradas++;
+        continue;
+      }
+      const varId = insVar.run(req.params.id, sku.trim(), estoque, estoque_minimo, preco_venda).lastInsertRowid;
+      for (const vid of valor_atributo_ids) insVV.run(varId, vid);
+      criadas++;
+    }
+    db.exec('COMMIT');
+    res.status(201).json({ criadas, ignoradas });
   } catch (err) {
     db.exec('ROLLBACK');
     throw err;

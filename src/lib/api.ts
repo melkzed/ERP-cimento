@@ -23,3 +23,14 @@ export const brl = (n: number | null | undefined) =>
   n == null
     ? "—"
     : n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+// Abreviação para compor SKUs automaticamente: remove acentos e símbolos.
+// "Couro sintético" -> "COU", "GG" -> "GG", "42" -> "42"
+export const abrevia = (s: string, len = 3) => {
+  const limpo = s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .toUpperCase();
+  return /^\d+$/.test(limpo) || limpo.length <= len ? limpo : limpo.slice(0, len);
+};
