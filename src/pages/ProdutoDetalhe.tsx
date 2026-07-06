@@ -1,9 +1,10 @@
 import { FormEvent, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Plus, Scale, Trash2, Wand2 } from "lucide-react";
+import { ArrowLeft, Factory, Plus, Scale, Trash2, Wand2 } from "lucide-react";
 import { abrevia, api, brl } from "../lib/api";
 import { Badge, Button, Card, EmptyState, ErrorNote, Field, Input, Modal, PageHeader, Table, useData } from "../components/ui";
-import type { Atributo, ProdutoDetalhado } from "../types";
+import FornecedorForm from "../components/FornecedorForm";
+import type { Atributo, Fornecedor, ProdutoDetalhado } from "../types";
 
 // Produto cartesiano das seleções: [[a,b],[x]] -> [[a,x],[b,x]]
 function combina<T>(listas: T[][]): T[][] {
@@ -15,6 +16,8 @@ export default function ProdutoDetalhe() {
   const navigate = useNavigate();
   const { data: produto, reload } = useData(() => api.get<ProdutoDetalhado>(`/produtos/${id}`), [id]);
   const { data: atributos } = useData(() => api.get<Atributo[]>("/atributos"));
+  const { data: todosFornecedores, reload: reloadFornecedores } = useData(() => api.get<Fornecedor[]>("/fornecedores"));
+  const [openFornecedor, setOpenFornecedor] = useState(false);
   const [open, setOpen] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -72,6 +75,17 @@ export default function ProdutoDetalhe() {
   const excluirVariacao = (variacaoId: number) =>
     api.delete(`/variacoes/${variacaoId}`).then(reload).catch((err: Error) => setErro(err.message));
 
+  const vincularFornecedor = (fornecedorId: number) =>
+    api
+      .post(`/produtos/${id}/fornecedores`, { fornecedor_id: fornecedorId })
+      .then(reload)
+      .catch((err: Error) => setErro(err.message));
+
+  const desvincularFornecedor = (fornecedorId: number) =>
+    api.delete(`/produtos/${id}/fornecedores/${fornecedorId}`).then(reload).catch((err: Error) => setErro(err.message));
+
+  const naoVinculados = todosFornecedores?.filter((f) => !produto.fornecedores.some((pf) => pf.id === f.id)) ?? [];
+
   const excluirProduto = () => {
     if (!confirm(`Excluir o produto "${produto.nome}" e todas as suas variações?`)) return;
     api.delete(`/produtos/${id}`).then(() => navigate("/produtos"));
@@ -98,6 +112,49 @@ export default function ProdutoDetalhe() {
       />
       <ErrorNote message={erro} />
       {aviso && <p className="mb-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{aviso}</p>}
+
+      <Card className="mb-5 p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <Factory size={14} /> Fornecedores deste produto
+          </span>
+          {produto.fornecedores.map((f) => (
+            <Badge key={f.id} tone="green">
+              <Link to={`/fornecedores/${f.id}`} className="hover:underline">
+                {f.nome_fantasia || f.razao_social}
+              </Link>
+              <button
+                className="ml-1.5 text-emerald-600 hover:text-red-600"
+                title="Desvincular fornecedor"
+                onClick={() => desvincularFornecedor(f.id)}
+              >
+                ✕
+              </button>
+            </Badge>
+          ))}
+          {produto.fornecedores.length === 0 && <span className="text-xs text-slate-400">Nenhum fornecedor vinculado.</span>}
+          {naoVinculados.length > 0 && (
+            <select
+              className="rounded-full border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-600 outline-none focus:border-amber-500"
+              value=""
+              onChange={(e) => e.target.value && vincularFornecedor(Number(e.target.value))}
+            >
+              <option value="">+ vincular existente…</option>
+              {naoVinculados.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.nome_fantasia || f.razao_social}
+                </option>
+              ))}
+            </select>
+          )}
+          <button
+            onClick={() => setOpenFornecedor(true)}
+            className="rounded-full border border-dashed border-amber-500 px-3 py-1 text-xs font-semibold text-amber-600 transition hover:bg-amber-50"
+          >
+            + Cadastrar novo fornecedor
+          </button>
+        </div>
+      </Card>
 
       <Card>
         <Table headers={["SKU", "Combinação de atributos", "Estoque", "Preço de venda", "Melhor custo", "Ofertas", ""]}>
@@ -238,6 +295,21 @@ export default function ProdutoDetalhe() {
             </div>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        title={`Novo fornecedor — vinculado a ${produto.nome} ao salvar`}
+        open={openFornecedor}
+        onClose={() => setOpenFornecedor(false)}
+      >
+        <FornecedorForm
+          onCancel={() => setOpenFornecedor(false)}
+          onSaved={(fornecedorId) => {
+            setOpenFornecedor(false);
+            reloadFornecedores();
+            vincularFornecedor(fornecedorId);
+          }}
+        />
       </Modal>
     </>
   );

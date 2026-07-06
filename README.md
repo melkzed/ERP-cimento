@@ -55,6 +55,10 @@ O schema completo está em [`server/schema.sql`](server/schema.sql).
 
 - **Categorias e atributos são escolhidos de listas** (FK), nunca digitados no produto —
   impossível criar "Camizetas" por engano.
+- **Fornecedores selecionados no cadastro do produto** (chips clicáveis, tabela
+  `produto_fornecedor`). Fornecedor não existe ainda? Um botão abre o cadastro **dentro do
+  mesmo modal** — o formulário do produto fica preservado e, ao salvar, você volta com o
+  novo fornecedor já selecionado. O mesmo atalho existe no modal de nova oferta.
 - **Gerador de variações em massa**: marque as cores e tamanhos desejados e todas as
   combinações são criadas de uma vez (produto cartesiano), com **SKU gerado
   automaticamente** (ex.: `POLO-AZU-M`). Combinações que já existem são ignoradas.

@@ -11,7 +11,7 @@ export const DB_PATH = join(dataDir, 'erp.sqlite');
 
 export const db = new DatabaseSync(DB_PATH);
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 db.exec('PRAGMA foreign_keys = ON;');
 db.exec('PRAGMA journal_mode = WAL;');

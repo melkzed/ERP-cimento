@@ -72,6 +72,14 @@ CREATE TABLE IF NOT EXISTS fornecedores (
   ativo         INTEGER NOT NULL DEFAULT 1
 );
 
+-- Fornecedores homologados por produto (selecionados no cadastro do produto).
+-- O preço/condição de cada SKU continua em fornecedor_variacao.
+CREATE TABLE IF NOT EXISTS produto_fornecedor (
+  produto_id    INTEGER NOT NULL REFERENCES produtos(id) ON DELETE CASCADE,
+  fornecedor_id INTEGER NOT NULL REFERENCES fornecedores(id) ON DELETE CASCADE,
+  PRIMARY KEY (produto_id, fornecedor_id)
+);
+
 CREATE TABLE IF NOT EXISTS condicoes_pagamento (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   nome          TEXT NOT NULL UNIQUE,
@@ -99,3 +107,4 @@ CREATE INDEX IF NOT EXISTS idx_variacoes_produto         ON variacoes(produto_id
 CREATE INDEX IF NOT EXISTS idx_vv_valor                  ON variacao_valores(valor_atributo_id);
 CREATE INDEX IF NOT EXISTS idx_fv_variacao               ON fornecedor_variacao(variacao_id);
 CREATE INDEX IF NOT EXISTS idx_fv_fornecedor             ON fornecedor_variacao(fornecedor_id);
+CREATE INDEX IF NOT EXISTS idx_pf_fornecedor             ON produto_fornecedor(fornecedor_id);

@@ -129,4 +129,12 @@ export function seed(db) {
   for (const [sku, forn, cond, custo, prazo, forma, qtd, cod] of ofertas) {
     insOferta.run(forn, skus[sku], cond, custo, prazo, forma, qtd, cod);
   }
+
+  // --- Fornecedores homologados por produto (derivados das ofertas) ---
+  db.exec(`
+    INSERT INTO produto_fornecedor (produto_id, fornecedor_id)
+    SELECT DISTINCT v.produto_id, fv.fornecedor_id
+      FROM fornecedor_variacao fv
+      JOIN variacoes v ON v.id = fv.variacao_id
+  `);
 }

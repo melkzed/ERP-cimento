@@ -194,19 +194,43 @@ app.get('/api/produtos', wrap((req, res) => {
   res.json(db.prepare(`
     SELECT p.*, c.nome AS categoria,
            (SELECT COUNT(*) FROM variacoes v WHERE v.produto_id = p.id) AS num_variacoes,
-           (SELECT COALESCE(SUM(v.estoque), 0) FROM variacoes v WHERE v.produto_id = p.id) AS estoque_total
+           (SELECT COALESCE(SUM(v.estoque), 0) FROM variacoes v WHERE v.produto_id = p.id) AS estoque_total,
+           (SELECT COUNT(*) FROM produto_fornecedor pf WHERE pf.produto_id = p.id) AS num_fornecedores
       FROM produtos p LEFT JOIN categorias c ON c.id = p.categoria_id
      ORDER BY p.nome
   `).all());
 }));
 
 app.post('/api/produtos', wrap((req, res) => {
-  const { nome, descricao, categoria_id, unidade } = req.body;
+  const { nome, descricao, categoria_id, unidade, fornecedor_ids = [] } = req.body;
   if (!nome?.trim()) return res.status(400).json({ error: 'Informe o nome do produto.' });
   if (!categoria_id) return res.status(400).json({ error: 'Selecione uma categoria.' });
-  const r = db.prepare('INSERT INTO produtos (nome, descricao, categoria_id, unidade) VALUES (?, ?, ?, ?)')
-    .run(nome.trim(), descricao || null, categoria_id, unidade || 'UN');
-  res.status(201).json({ id: r.lastInsertRowid });
+  const insProd = db.prepare('INSERT INTO produtos (nome, descricao, categoria_id, unidade) VALUES (?, ?, ?, ?)');
+  const insPF = db.prepare('INSERT OR IGNORE INTO produto_fornecedor (produto_id, fornecedor_id) VALUES (?, ?)');
+  db.exec('BEGIN');
+  try {
+    const prodId = insProd.run(nome.trim(), descricao || null, categoria_id, unidade || 'UN').lastInsertRowid;
+    for (const fid of fornecedor_ids) insPF.run(prodId, fid);
+    db.exec('COMMIT');
+    res.status(201).json({ id: prodId });
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+}));
+
+app.post('/api/produtos/:id/fornecedores', wrap((req, res) => {
+  const { fornecedor_id } = req.body;
+  if (!fornecedor_id) return res.status(400).json({ error: 'Selecione um fornecedor.' });
+  db.prepare('INSERT INTO produto_fornecedor (produto_id, fornecedor_id) VALUES (?, ?)')
+    .run(req.params.id, fornecedor_id);
+  res.status(201).json({ ok: true });
+}));
+
+app.delete('/api/produtos/:id/fornecedores/:fornecedorId', wrap((req, res) => {
+  db.prepare('DELETE FROM produto_fornecedor WHERE produto_id = ? AND fornecedor_id = ?')
+    .run(req.params.id, req.params.fornecedorId);
+  res.json({ ok: true });
 }));
 
 app.get('/api/produtos/:id', wrap((req, res) => {
@@ -225,7 +249,12 @@ app.get('/api/produtos/:id', wrap((req, res) => {
              WHERE fv.variacao_id = v.id) AS melhor_custo
       FROM variacoes v WHERE v.produto_id = ? ORDER BY v.sku
   `).all(req.params.id).map(variacaoCompleta);
-  res.json({ ...produto, variacoes });
+  const fornecedores = db.prepare(`
+    SELECT f.* FROM produto_fornecedor pf
+    JOIN fornecedores f ON f.id = pf.fornecedor_id
+    WHERE pf.produto_id = ? ORDER BY f.nome_fantasia
+  `).all(req.params.id);
+  res.json({ ...produto, variacoes, fornecedores });
 }));
 
 app.delete('/api/produtos/:id', wrap((req, res) => {

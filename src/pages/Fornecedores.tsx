@@ -1,33 +1,14 @@
-import { FormEvent, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ChevronRight, Plus } from "lucide-react";
 import { api } from "../lib/api";
-import { Badge, Button, Card, EmptyState, ErrorNote, Field, Input, Modal, PageHeader, Table, useData } from "../components/ui";
+import { Badge, Button, Card, EmptyState, Modal, PageHeader, Table, useData } from "../components/ui";
+import FornecedorForm from "../components/FornecedorForm";
 import type { Fornecedor } from "../types";
-
-const FORM_VAZIO = { razao_social: "", nome_fantasia: "", cnpj: "", email: "", telefone: "", cidade: "", uf: "" };
 
 export default function Fornecedores() {
   const { data, reload } = useData(() => api.get<Fornecedor[]>("/fornecedores"));
   const [open, setOpen] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
-  const [form, setForm] = useState(FORM_VAZIO);
-
-  const criar = (e: FormEvent) => {
-    e.preventDefault();
-    api
-      .post("/fornecedores", form)
-      .then(() => {
-        setOpen(false);
-        setForm(FORM_VAZIO);
-        setErro(null);
-        reload();
-      })
-      .catch((err: Error) => setErro(err.message));
-  };
-
-  const set = (k: keyof typeof FORM_VAZIO) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setForm((f) => ({ ...f, [k]: e.target.value }));
 
   return (
     <>
@@ -72,38 +53,13 @@ export default function Fornecedores() {
       </Card>
 
       <Modal title="Novo fornecedor" open={open} onClose={() => setOpen(false)}>
-        <form onSubmit={criar} className="space-y-4">
-          <ErrorNote message={erro} />
-          <Field label="Razão social">
-            <Input required value={form.razao_social} onChange={set("razao_social")} />
-          </Field>
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Nome fantasia">
-              <Input value={form.nome_fantasia} onChange={set("nome_fantasia")} />
-            </Field>
-            <Field label="CNPJ">
-              <Input value={form.cnpj} onChange={set("cnpj")} placeholder="00.000.000/0000-00" />
-            </Field>
-            <Field label="E-mail">
-              <Input type="email" value={form.email} onChange={set("email")} />
-            </Field>
-            <Field label="Telefone">
-              <Input value={form.telefone} onChange={set("telefone")} />
-            </Field>
-            <Field label="Cidade">
-              <Input value={form.cidade} onChange={set("cidade")} />
-            </Field>
-            <Field label="UF">
-              <Input maxLength={2} value={form.uf} onChange={set("uf")} placeholder="SP" />
-            </Field>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setOpen(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit">Salvar</Button>
-          </div>
-        </form>
+        <FornecedorForm
+          onCancel={() => setOpen(false)}
+          onSaved={() => {
+            setOpen(false);
+            reload();
+          }}
+        />
       </Modal>
     </>
   );

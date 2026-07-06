@@ -28,6 +28,7 @@ export interface Produto {
   criado_em: string;
   num_variacoes?: number;
   estoque_total?: number;
+  num_fornecedores?: number;
 }
 
 export interface ValorDaVariacao {
@@ -53,6 +54,7 @@ export interface Variacao {
 
 export interface ProdutoDetalhado extends Produto {
   variacoes: Variacao[];
+  fornecedores: Fornecedor[];
 }
 
 export interface Fornecedor {

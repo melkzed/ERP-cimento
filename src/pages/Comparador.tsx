@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { Plus, Trash2, Trophy } from "lucide-react";
 import { api, brl } from "../lib/api";
 import { Badge, Button, Card, EmptyState, ErrorNote, Field, Input, Modal, PageHeader, Select, Table, useData } from "../components/ui";
+import FornecedorForm from "../components/FornecedorForm";
 import type { CondicaoPagamento, Fornecedor, Oferta, Variacao } from "../types";
 
 const FORM_VAZIO = {
@@ -20,7 +21,7 @@ export default function Comparador() {
   const variacaoId = params.get("variacao") ?? "";
 
   const { data: variacoes } = useData(() => api.get<Variacao[]>("/variacoes"));
-  const { data: fornecedores } = useData(() => api.get<Fornecedor[]>("/fornecedores"));
+  const { data: fornecedores, reload: reloadFornecedores } = useData(() => api.get<Fornecedor[]>("/fornecedores"));
   const { data: condicoes } = useData(() => api.get<CondicaoPagamento[]>("/condicoes"));
   const { data: ofertas, reload } = useData(
     () => api.get<Oferta[]>(`/ofertas${variacaoId ? `?variacao_id=${variacaoId}` : ""}`),
@@ -28,6 +29,9 @@ export default function Comparador() {
   );
 
   const [open, setOpen] = useState(false);
+  // 'oferta' | 'fornecedor': troca a tela do modal sem desmontar o formulário
+  // da oferta — os campos preenchidos são preservados.
+  const [view, setView] = useState<"oferta" | "fornecedor">("oferta");
   const [erro, setErro] = useState<string | null>(null);
   const [form, setForm] = useState(FORM_VAZIO);
 
@@ -145,7 +149,25 @@ export default function Comparador() {
         )}
       </Card>
 
-      <Modal title={`Nova oferta — ${variacaoAtual?.sku ?? ""}`} open={open} onClose={() => setOpen(false)}>
+      <Modal
+        title={view === "oferta" ? `Nova oferta — ${variacaoAtual?.sku ?? ""}` : "Novo fornecedor (a oferta continua salva aqui atrás)"}
+        open={open}
+        onClose={() => {
+          setOpen(false);
+          setView("oferta");
+        }}
+      >
+        {view === "fornecedor" ? (
+          <FornecedorForm
+            cancelLabel="← Voltar à oferta"
+            onCancel={() => setView("oferta")}
+            onSaved={(id) => {
+              reloadFornecedores();
+              setForm((f) => ({ ...f, fornecedor_id: String(id) }));
+              setView("oferta");
+            }}
+          />
+        ) : (
         <form onSubmit={criar} className="space-y-4">
           <ErrorNote message={erro} />
           <Field label="Fornecedor">
@@ -158,6 +180,13 @@ export default function Comparador() {
               ))}
             </Select>
           </Field>
+          <button
+            type="button"
+            onClick={() => setView("fornecedor")}
+            className="-mt-2 text-xs font-semibold text-amber-600 hover:text-amber-700"
+          >
+            + Fornecedor não está na lista? Cadastre sem perder o que preencheu
+          </button>
           <Field label="Condição de pagamento">
             <Select required value={form.condicao_pagamento_id} onChange={(e) => setForm({ ...form, condicao_pagamento_id: e.target.value })}>
               <option value="">Selecione…</option>
@@ -196,6 +225,7 @@ export default function Comparador() {
             <Button type="submit">Salvar oferta</Button>
           </div>
         </form>
+        )}
       </Modal>
     </>
   );
